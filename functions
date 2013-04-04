@@ -151,7 +151,7 @@
     */  
     function findSynonym($word)
     {
-        $key = "bc5e0192ff8e2a65fd4552ab7a5880d2";
+        $key = "#################################";
         $tag = $word['tag'];
         
         // for words not in or not ready for thesaurus
