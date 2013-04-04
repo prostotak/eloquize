@@ -1,0 +1,308 @@
+ /**
+     * Checks the HTTP response code for the API request
+     */
+    function httpResponse($url)
+    {
+        $handle = curl_init($url);
+        curl_setopt($handle,  CURLOPT_RETURNTRANSFER, TRUE);
+
+        /* Get the HTML or whatever is linked in $url. */
+        $response = curl_exec($handle);
+
+        /* Check for 404 (file not found). */
+        $httpCode = curl_getinfo($handle, CURLINFO_HTTP_CODE);
+        curl_close($handle);
+   // dump($httpCode);
+        // check the codes: 200 and 303 mean the word exists
+        if ($httpCode == 200 || $httpCode == 303)
+        {
+            return 1;
+        }
+        
+        return 0;
+        
+    }
+
+     
+     
+                                     ////////////            \\\\\\\\\\\\
+                                    //            THE SYNTAX            \\
+                                   ///////////                 \\\\\\\\\\\\
+     /**
+     *  Fix contractions (as they get lopped off in parsing).
+     */
+     function fixContractions($no_punctuation)
+     {
+        foreach ($no_punctuation as $i => $word)          
+        {
+            if ($word == "y")
+                $no_punctuation[$i] = 'you';
+             if ($word == "ve")
+                $no_punctuation[$i] = 'have';
+             if ($word == "haven")
+                $no_punctuation[$i] = 'have';  
+             if ($word == "t")
+                $no_punctuation[$i] = 'not';
+             if ($word == "won")
+                $no_punctuation[$i] = 'will';
+             if ($word == "wouldn")
+                $no_punctuation[$i] = 'would';   
+            if ($word == "don")
+                $no_punctuation[$i] = 'do';              
+
+        }
+        return $no_punctuation;
+     }
+     
+      
+    
+   /**
+    * Convert the tag format from the Brown Corpus format
+    *
+    *  thesaurs API POS types:  
+    *   "adverb", "adjective", "noun", "verb"
+    */
+    function convertTag($word)
+    {    
+        $tag = $word['tag'];
+        // set adjectives
+        if ($tag === 'JJ' || $tag === 'JJR' || $tag === 'JJS'|| $tag === 'JJT' ||
+            $tag === 'QL' || $tag === 'QLP')
+        {
+            $tag = 'adjective';
+        }
+        // set nouns
+        else if ($tag === 'NC' || $tag === 'NN'|| $tag === 'NN$'|| $tag === 'NNS'|| 
+            $tag === 'NP' || $tag === 'NP$' || $tag === 'NPS$'|| $tag === 'NR' ||
+            $tag === 'UH')
+        {   
+            $tag = 'noun';
+        }
+        // set adverb
+        else if ($tag === 'RB'|| $tag === 'RBR'|| $tag === 'RBT'|| $tag === 'RN' ||
+            $tag === 'RP' )
+        {
+            $tag = 'adverb';
+        }
+        // set verb
+        else if ($tag === 'VB'|| $tag === 'VBD'|| $tag === 'VBG'|| $tag === 'VBN' ||
+            $tag === 'VBP'|| $tag === 'VBZ')
+        {
+            $tag = 'verb';
+        }
+        else
+        {
+            $tag = 'SKIP';
+        }
+        
+        if ($word['token'] === 'is' || $word['token'] === 'do'|| $word['token'] === 'be'||
+            $word['token'] === 'i')
+            $tag = 'SKIP';
+        
+        return $tag;
+    }
+      
+   /**
+    * if the http request returned a 404 or 500, check to see if it's
+    * a contraction, pronoun, modal, etc.   
+    */
+    function notThesaurus($word)
+    {
+#        $rand_switch = rand(0, 3);
+#    // personal pronouns
+#        $pronouns = [
+#            'it', 'I', 'you','he','they','we','she','who','them','me','him',
+#            'one','her','us','something','nothing','anything','himself',
+#            'everything','someone','themselves','everyone','itself','anyone',
+#            'myself' 
+#        ];
+#        
+#        if (in_array($word, $pronouns))
+#        {
+#            
+#            
+#            if ($word == 'you')         // TODO but this is trouble -> what about thee (to you), thy, etc.
+#                if ($rand_switch == 1)               
+#                    $word = 'thou';                    
+
+#                    
+#                
+#                
+#            return $word;
+#                    
+#        }
+#    
+    
+        // common contractions
+        // words like "can't" are not found in thesaurus 
+
+        // modal verbs like "would," "could," and "should"
+    
+        // TODO because the regex is splitting out all punctuation, need to check for "y" as in "y'all"
+
+    
+        return $word;
+    }
+        
+        
+   /**
+    * Find a synonym by word and POS tag. If no word is in the thesaurus, pass it to 'notThesaurus.'
+    *       Many thanks to Big Huge Thesaurus for the awesome API!
+    */  
+    function findSynonym($word)
+    {
+        $key = "bc5e0192ff8e2a65fd4552ab7a5880d2";
+        $tag = $word['tag'];
+        
+        // for words not in or not ready for thesaurus
+        if ($tag === 'SKIP')
+        {
+            return $word['token'];
+        }
+    else{
+      // make the JSON api request:
+    	$url = "http://words.bighugelabs.com/api/2/".$key."/".$word['token']."/json";
+    	
+    	// check the http response -- 200 and 303 are okay, 404 and 500 indicate no word exists in thesaurus
+    	// if the http response is bad
+    	if(!httpResponse($url))
+	    {      	    
+    	    $new_word = notThesaurus($word['token']);      // TODO make sure this is working!
+    	    return $new_word; 
+    	}
+    	// if the http response is good
+    	else
+    	{
+	        $response = file_get_contents($url);            	
+    	    $json = json_decode($response, true);  
+            $new_word = $json[$tag]['syn'][1];
+            
+            if (!$json[$tag]['syn'][1])
+            {
+                if (!$json[$tag]['syn'][0])
+                    return $word['token'];
+                $new_word = $json[$tag]['syn'][0];              // TODO fix this up here a little bit
+            }
+            
+            return $new_word;
+    	
+    	}
+    }
+        return $word['token'];
+
+    }
+    
+    
+
+
+                                      ////////////            \\\\\\\\\\\\
+                                     //            THE TAGGER            \\
+                                    ///////////                 \\\\\\\\\\\\
+  
+/*
+ *     Many thanks to Ian Barber (at http://phpir.com/part-of-speech-tagging) for this PHP POS tagger.
+ *     Also, a comment by "Richard" at the aforementioned site helped me get this into SQL.
+ */
+  
+        
+      class PosTagger {
+        private $dict; 
+        
+        public function __construct($lexicon) {
+                $fh = fopen($lexicon, 'r');
+                while($line = fgets($fh)) {
+                        $tags = explode(' ', $line);
+                        $this->dict[strtolower(array_shift($tags))] = $tags;
+                }
+                fclose($fh);
+        }
+        
+        public function tag($text) {
+                preg_match_all("/[\w\d\.]+/", $text, $matches);
+                $nouns = array('NN', 'NNS');
+                
+                $return = array();
+                $i = 0;
+                foreach($matches[0] as $token) {
+                        // default to a common noun
+                        $return[$i] = array('token' => $token, 'tag' => 'NN');  
+                        
+                        // remove trailing full stops
+                        if(substr($token, -1) == '.') {
+                                $token = preg_replace('/\.+$/', '', $token);
+                        }
+                        
+                        // get from dict if set
+                        if(isset($this->dict[strtolower($token)])) {
+                                $return[$i]['tag'] = $this->dict[strtolower($token)][0];
+                        }       
+                        
+                        // Converts verbs after 'the' to nouns
+                        if($i > 0) {
+                                if($return[$i - 1]['tag'] == 'DT' && 
+                                        in_array($return[$i]['tag'], 
+                                                        array('VBD', 'VBP', 'VB'))) {
+                                        $return[$i]['tag'] = 'NN';
+                                }
+                        }
+                        
+                        // Convert noun to number if . appears
+                        if($return[$i]['tag'][0] == 'N' && strpos($token, '.') !== false) {
+                                $return[$i]['tag'] = 'CD';
+                        }
+                        
+                        // Convert noun to past particile if ends with 'ed'
+                        if($return[$i]['tag'][0] == 'N' && substr($token, -2) == 'ed') {
+                                $return[$i]['tag'] = 'VBN';
+                        }
+                        
+                        // Anything that ends 'ly' is an adverb
+                        if(substr($token, -2) == 'ly') {
+                                $return[$i]['tag'] = 'RB';
+                        }
+                        
+                        // Common noun to adjective if it ends with al
+                        if(in_array($return[$i]['tag'], $nouns) 
+                                                && substr($token, -2) == 'al') {
+                                $return[$i]['tag'] = 'JJ';
+                        }
+                        
+                        // Noun to verb if the word before is 'would'
+                        if($i > 0) {
+                                if($return[$i]['tag'] == 'NN' 
+                                        && strtolower($return[$i-1]['token']) == 'would') {
+                                        $return[$i]['tag'] = 'VB';
+                                }
+                        }
+                        
+                        // Convert noun to plural if it ends with an s
+                        if($return[$i]['tag'] == 'NN' && substr($token, -1) == 's') {
+                                $return[$i]['tag'] = 'NNS';
+                        }
+                        
+                        // Convert common noun to gerund
+                        if(in_array($return[$i]['tag'], $nouns) 
+                                        && substr($token, -3) == 'ing') {
+                                $return[$i]['tag'] = 'VBG';
+                        }
+                        
+                        // If we get noun noun, and the second can be a verb, convert to verb
+                        if($i > 0) {
+                                if(in_array($return[$i]['tag'], $nouns) 
+                                                && in_array($return[$i-1]['tag'], $nouns) 
+                                                && isset($this->dict[strtolower($token)])) {
+                                        if(in_array('VBN', $this->dict[strtolower($token)])) {
+                                                $return[$i]['tag'] = 'VBN';
+                                        } else if(in_array('VBZ', 
+                                                        $this->dict[strtolower($token)])) {
+                                                $return[$i]['tag'] = 'VBZ';
+                                        }
+                                }
+                        }
+                        
+                        $i++;
+                }
+                
+                return $return;
+        }
+    }
